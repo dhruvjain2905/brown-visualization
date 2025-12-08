@@ -351,12 +351,12 @@ function getSeniorDotPositionsClustered() {
 
    clusterInfo.push({
      name: conc.name,
+     fullName: conc.fullName || conc.name,
      x: centerX,
      y: centerY,
      count: totalInConc,
      bachelors: conc.bachelors,
-     masters: conc.masters,
-     topCombinations: conc.topCombinations
+     masters: conc.masters
    });
 
 
@@ -509,7 +509,7 @@ function renderSeniorScene(positions, options = {}) {
  } else if (showLabels) {
    // Single cluster label
    const totalSeniors = state.dots.length;
-   renderSingleLabel('Class of 2024', `${totalSeniors.toLocaleString()} students`);
+   renderSingleLabel('Class of 2024 (Bachelors and Masters)', `${totalSeniors.toLocaleString()} students`);
  } else {
    labelsGroup.selectAll('.cluster-label, .cluster-count').remove();
  }
@@ -857,7 +857,7 @@ function transitionToScene2A1() {
 
 
 function generateDotsWithGenderTypes() {
- // Generate dots for FIRST-YEAR students only with gender differentiation
+ // Generate dots for Class of 2028 with gender differentiation
  const dots = [];
  const genderData = brownData.students.byGender;
  const genders = ['men', 'women', 'nonBinary'];
@@ -869,17 +869,14 @@ function generateDotsWithGenderTypes() {
    const color = colors[genderKey];
 
 
-   // Use first-year class data only
-   const enrolledFirstYear = data.byClass.firstYear;
-
-
-   // Calculate total admitted first-years (assuming same yield rate)
-   const admittedFirstYear = Math.round(enrolledFirstYear / (data.yieldRate / 100));
-   const notEnrolledFirstYear = admittedFirstYear - enrolledFirstYear;
+   // Use enrolled and admitted directly from data
+   const enrolled = data.enrolled;
+   const admitted = data.admitted;
+   const notEnrolled = admitted - enrolled;
 
 
    // Add enrolled students (solid dots)
-   for (let i = 0; i < enrolledFirstYear; i++) {
+   for (let i = 0; i < enrolled; i++) {
      dots.push({
        x: state.width / 2,
        y: state.height / 2,
@@ -891,17 +888,15 @@ function generateDotsWithGenderTypes() {
        enrolled: true,
        metadata: {
          ...data,
-         genderName: genderKey.charAt(0).toUpperCase() + genderKey.slice(1),
-         enrolledFirstYear: enrolledFirstYear,
-         admittedFirstYear: admittedFirstYear
+         genderName: genderKey === 'nonBinary' ? 'Non-binary' : genderKey.charAt(0).toUpperCase() + genderKey.slice(1)
        }
      });
    }
 
 
    // Add SAMPLED admitted but not enrolled students (shadow/muted dots)
-   // Sample 30% of non-enrolled for performance
-   const sampleSize = Math.round(notEnrolledFirstYear * 0.3);
+   // Sample 30% of non-enrolled for performance (but show all if small number)
+   const sampleSize = notEnrolled <= 10 ? notEnrolled : Math.round(notEnrolled * 0.3);
    for (let i = 0; i < sampleSize; i++) {
      dots.push({
        x: state.width / 2,
@@ -914,9 +909,7 @@ function generateDotsWithGenderTypes() {
        enrolled: false,
        metadata: {
          ...data,
-         genderName: genderKey.charAt(0).toUpperCase() + genderKey.slice(1),
-         enrolledFirstYear: enrolledFirstYear,
-         admittedFirstYear: admittedFirstYear
+         genderName: genderKey === 'nonBinary' ? 'Non-binary' : genderKey.charAt(0).toUpperCase() + genderKey.slice(1)
        }
      });
    }
@@ -951,7 +944,7 @@ function getGenderDotPositionsSingle() {
 
 
 function getGenderDotPositionsClustered() {
- // Calculate positions for 3 gender clusters
+ // Calculate positions for 3 gender clusters (Class of 2028)
  const genderData = brownData.students.byGender;
  const genders = ['men', 'women', 'nonBinary'];
 
@@ -964,18 +957,15 @@ function getGenderDotPositionsClustered() {
    const data = genderData[genderKey];
 
 
-   // Use first-year data only
-   const enrolledFirstYear = data.byClass.firstYear;
-   const admittedFirstYear = Math.round(enrolledFirstYear / (data.yieldRate / 100));
-   const notEnrolledFirstYear = admittedFirstYear - enrolledFirstYear;
-   const sampleSize = Math.round(notEnrolledFirstYear * 0.3);
+   // Use data directly
+   const enrolled = data.enrolled;
+   const admitted = data.admitted;
+   const applicants = data.applicants;
+   const notEnrolled = admitted - enrolled;
+   const sampleSize = notEnrolled <= 10 ? notEnrolled : Math.round(notEnrolled * 0.3);
 
 
-   // Calculate applicants for first-year (proportional to total applicants)
-   const applicantsFirstYear = Math.round(data.applicants * (enrolledFirstYear / data.enrolled));
-
-
-   const totalInCluster = enrolledFirstYear + sampleSize;
+   const totalInCluster = enrolled + sampleSize;
 
 
    // Position clusters horizontally - men and women spread apart, non-binary to the right
@@ -990,28 +980,27 @@ function getGenderDotPositionsClustered() {
 
 
    // Calculate background circle radius based on total applicants
-   const backgroundRadius = Math.sqrt(applicantsFirstYear) * 1.2;
+   const backgroundRadius = Math.sqrt(applicants) * 1.2;
 
 
    clusterInfo.push({
-     name: genderKey.charAt(0).toUpperCase() + genderKey.slice(1),
+     name: genderKey === 'nonBinary' ? 'Non-binary' : genderKey.charAt(0).toUpperCase() + genderKey.slice(1),
      genderKey: genderKey,
      x: x,
      y: y,
      count: totalInCluster,
-     enrolled: enrolledFirstYear,
-     admitted: admittedFirstYear,
-     applicants: applicantsFirstYear,
+     enrolled: enrolled,
+     admitted: admitted,
+     applicants: applicants,
      acceptanceRate: data.acceptanceRate,
      yieldRate: data.yieldRate,
-     byClass: data.byClass,
      clusterRadius: clusterRadius,
      backgroundRadius: backgroundRadius
    });
 
 
    // Generate positions for ENROLLED dots (solid, colored)
-   for (let j = 0; j < enrolledFirstYear; j++) {
+   for (let j = 0; j < enrolled; j++) {
      const angle = Math.random() * 2 * Math.PI;
      const radius = Math.random() * clusterRadius;
 
@@ -1065,8 +1054,8 @@ function renderBackgroundCircles(clusterInfo, options = {}) {
 
  // Draw background blobs for each cluster
  clusterInfo.forEach(cluster => {
-   // Calculate blob radius - should be ~20x larger than enrolled cluster to show 5% acceptance
-   const blobRadius = cluster.backgroundRadius * 3.5;
+   // Calculate blob radius based on applicants
+   const blobRadius = cluster.backgroundRadius * 1.3;
 
 
    // Add the blob circle with dotted stroke
@@ -1158,11 +1147,11 @@ function renderGenderScene(positions, options = {}) {
  if (showLabels && clusterInfo.length > 0) {
    renderGenderLabels(clusterInfo);
  } else if (showLabels) {
-   // Calculate total first-year students
-   const totalFirstYear = brownData.students.byGender.men.byClass.firstYear +
-                         brownData.students.byGender.women.byClass.firstYear +
-                         brownData.students.byGender.nonBinary.byClass.firstYear;
-   renderSingleLabel('First-Year Students by Gender', `${totalFirstYear.toLocaleString()} students (Class of 2028)`);
+   // Calculate total enrolled students (Class of 2028)
+   const totalEnrolled = brownData.students.byGender.men.enrolled +
+                         brownData.students.byGender.women.enrolled +
+                         brownData.students.byGender.nonBinary.enrolled;
+   renderSingleLabel('Class of 2028 (Undergrads) by Gender', `${totalEnrolled.toLocaleString()} students enrolled`);
  } else {
    labelsGroup.selectAll('.cluster-label, .cluster-count').remove();
  }
@@ -1224,10 +1213,7 @@ function generateFacultyDotsForDepartment() {
        color: colors.faculty,
        departmentName: dept.name,
        metadata: {
-         count: dept.count,
-         assistantProf: dept.assistantProf,
-         associateProf: dept.associateProf,
-         fullProf: dept.fullProf
+         count: dept.count
        }
      });
    }
@@ -1241,18 +1227,10 @@ function generateFacultyDotsWithGender() {
  // Generate dots for faculty colored by gender, organized by rank
  const dots = [];
  const rankData = brownData.faculty.byRank;
- const ranks = ['assistantProf', 'associateProf', 'fullProf'];
- const rankNames = {
-   assistantProf: 'Assistant Professor',
-   associateProf: 'Associate Professor',
-   fullProf: 'Full Professor'
- };
 
- ranks.forEach(rankKey => {
-   const data = rankData[rankKey];
-
+ rankData.forEach((rank, idx) => {
    // Add men dots
-   for (let i = 0; i < data.men; i++) {
+   for (let i = 0; i < rank.men; i++) {
      dots.push({
        x: state.width / 2,
        y: state.height / 2,
@@ -1260,18 +1238,18 @@ function generateFacultyDotsWithGender() {
        targetY: state.height / 2,
        color: colors.men,
        genderType: 'men',
-       rankKey: rankKey,
-       rankName: rankNames[rankKey],
+       rankIndex: idx,
+       rankName: rank.name,
        metadata: {
-         total: data.total,
-         men: data.men,
-         women: data.women
+         total: rank.men + rank.women,
+         men: rank.men,
+         women: rank.women
        }
      });
    }
 
    // Add women dots
-   for (let i = 0; i < data.women; i++) {
+   for (let i = 0; i < rank.women; i++) {
      dots.push({
        x: state.width / 2,
        y: state.height / 2,
@@ -1279,12 +1257,12 @@ function generateFacultyDotsWithGender() {
        targetY: state.height / 2,
        color: colors.women,
        genderType: 'women',
-       rankKey: rankKey,
-       rankName: rankNames[rankKey],
+       rankIndex: idx,
+       rankName: rank.name,
        metadata: {
-         total: data.total,
-         men: data.men,
-         women: data.women
+         total: rank.men + rank.women,
+         men: rank.men,
+         women: rank.women
        }
      });
    }
@@ -1315,25 +1293,20 @@ function getFacultyDotPositionsSingle() {
 
 
 function getFacultyDotPositionsByDepartment() {
- // Calculate positions for department clusters
+ // Calculate positions for 4 department clusters in a row
  const departments = brownData.faculty.byDepartment;
  const numDepts = departments.length;
 
- const cols = 4;
- const rows = Math.ceil(numDepts / cols);
- const marginX = state.width * 0.14;
- const marginY = state.height * 0.2;
- const spacingX = (state.width - 2 * marginX) / (cols - 1);
- const spacingY = (state.height - 2 * marginY) / (rows - 1);
+ // Position 4 clusters horizontally
+ const marginX = state.width * 0.12;
+ const spacingX = (state.width - 2 * marginX) / (numDepts - 1);
 
  const positions = [];
  const clusterInfo = [];
 
  departments.forEach((dept, i) => {
-   const col = i % cols;
-   const row = Math.floor(i / cols);
-   const centerX = marginX + col * spacingX;
-   const centerY = marginY + row * spacingY;
+   const centerX = marginX + i * spacingX;
+   const centerY = state.height / 2;
 
    const clusterRadius = Math.sqrt(dept.count) * 2.5;
 
@@ -1341,10 +1314,7 @@ function getFacultyDotPositionsByDepartment() {
      name: dept.name,
      x: centerX,
      y: centerY,
-     count: dept.count,
-     assistantProf: dept.assistantProf,
-     associateProf: dept.associateProf,
-     fullProf: dept.fullProf
+     count: dept.count
    });
 
    for (let j = 0; j < dept.count; j++) {
@@ -1364,60 +1334,57 @@ function getFacultyDotPositionsByDepartment() {
 
 
 function getFacultyDotPositionsByRank() {
- // Calculate positions for rank clusters (3 clusters: Assistant, Associate, Full)
+ // Calculate positions for 4 rank clusters
  const rankData = brownData.faculty.byRank;
- const ranks = ['assistantProf', 'associateProf', 'fullProf'];
- const rankNames = {
-   assistantProf: 'Assistant Professor',
-   associateProf: 'Associate Professor',
-   fullProf: 'Full Professor'
- };
+ const numRanks = rankData.length;
+
+ // Position 4 clusters horizontally
+ const marginX = state.width * 0.1;
+ const spacingX = (state.width - 2 * marginX) / (numRanks - 1);
 
  const positions = [];
  const clusterInfo = [];
 
- ranks.forEach((rankKey, idx) => {
-   const data = rankData[rankKey];
-   const totalInCluster = data.total;
+ rankData.forEach((rank, idx) => {
+   const totalInCluster = rank.men + rank.women;
 
-   // Position clusters horizontally
-   const x = state.width * (0.2 + idx * 0.3);
-   const y = state.height / 2;
+   const centerX = marginX + idx * spacingX;
+   const centerY = state.height / 2;
 
    const clusterRadius = Math.sqrt(totalInCluster) * 2.5;
 
    clusterInfo.push({
-     name: rankNames[rankKey],
-     rankKey: rankKey,
-     x: x,
-     y: y,
+     name: rank.name,
+     rankIndex: idx,
+     x: centerX,
+     y: centerY,
      count: totalInCluster,
-     men: data.men,
-     women: data.women
+     men: rank.men,
+     women: rank.women
    });
 
    // Generate positions for men
-   for (let j = 0; j < data.men; j++) {
+   for (let j = 0; j < rank.men; j++) {
      const angle = Math.random() * 2 * Math.PI;
      const radius = Math.random() * clusterRadius;
 
      positions.push({
-       x: x + Math.cos(angle) * radius,
-       y: y + Math.sin(angle) * radius,
-       rankKey: rankKey,
+       x: centerX + Math.cos(angle) * radius,
+       y: centerY + Math.sin(angle) * radius,
+       rankIndex: idx,
        genderType: 'men'
      });
    }
 
    // Generate positions for women
-   for (let j = 0; j < data.women; j++) {
+   for (let j = 0; j < rank.women; j++) {
      const angle = Math.random() * 2 * Math.PI;
      const radius = Math.random() * clusterRadius;
 
      positions.push({
-       x: x + Math.cos(angle) * radius,
-       y: y + Math.sin(angle) * radius,
-       rankKey: rankKey,
+       x: centerX + Math.cos(angle) * radius,
+       y: centerY + Math.sin(angle) * radius,
+       rankIndex: idx,
        genderType: 'women'
      });
    }
@@ -1442,8 +1409,8 @@ function renderFacultyScene(positions, options = {}) {
      if (positions[i].departmentName) {
        dot.departmentName = positions[i].departmentName;
      }
-     if (positions[i].rankKey) {
-       dot.rankKey = positions[i].rankKey;
+     if (positions[i].rankIndex !== undefined) {
+       dot.rankIndex = positions[i].rankIndex;
      }
    }
  });
@@ -1573,16 +1540,18 @@ function getStaffDotPositionsSingle() {
 
 
 function getStaffDotPositionsByDivision() {
- // Calculate positions for division clusters
+ // Calculate positions for 13 division clusters in a grid
  const divisions = brownData.staff.byDivision;
  const numDivs = divisions.length;
 
- const cols = 3;
+ // Use 5 columns for 13 items (3 rows: 5, 5, 3)
+ const cols = 5;
  const rows = Math.ceil(numDivs / cols);
- const marginX = state.width * 0.15;
- const marginY = state.height * 0.2;
+ const marginX = state.width * 0.12;
+ const marginY = state.height * 0.24;
+ const marginBottom = state.height * 0.25; // Extra space for slider
  const spacingX = (state.width - 2 * marginX) / (cols - 1);
- const spacingY = (state.height - 2 * marginY) / (rows - 1);
+ const spacingY = (state.height - marginY - marginBottom) / (rows - 1);
 
  const positions = [];
  const clusterInfo = [];
@@ -1590,17 +1559,22 @@ function getStaffDotPositionsByDivision() {
  divisions.forEach((div, i) => {
    const col = i % cols;
    const row = Math.floor(i / cols);
-   const centerX = marginX + col * spacingX;
+
+   // Center the last row if it has fewer items
+   const itemsInThisRow = row === rows - 1 ? numDivs - (rows - 1) * cols : cols;
+   const rowOffset = row === rows - 1 ? (cols - itemsInThisRow) * spacingX / 2 : 0;
+
+   const centerX = marginX + col * spacingX + rowOffset;
    const centerY = marginY + row * spacingY;
 
-   const clusterRadius = Math.sqrt(div.count) * 2.5;
+   const clusterRadius = Math.sqrt(div.count) * 2;
 
    clusterInfo.push({
      name: div.name,
+     fullName: div.fullName || div.name,
      x: centerX,
      y: centerY,
-     count: div.count,
-     subDepts: div.subDepts
+     count: div.count
    });
 
    for (let j = 0; j < div.count; j++) {
@@ -2598,7 +2572,7 @@ function enableRankClicking(clusterInfo) {
        dotsGroup.selectAll('circle')
          .transition()
          .duration(200)
-         .attr('opacity', d => d.rankKey === cluster.rankKey ? 1 : 0.3);
+         .attr('opacity', d => d.rankIndex === cluster.rankIndex ? 1 : 0.3);
 
        // Bold label
        labelsGroup.selectAll('.cluster-label')
@@ -2694,14 +2668,14 @@ function enableDivisionClicking(clusterInfo) {
 
 
 function showConcentrationPopup(cluster) {
- const { bachelors = 0, masters = 0, topCombinations = [] } = cluster;
+ const { bachelors = 0, masters = 0, fullName = cluster.name } = cluster;
  const total = bachelors + masters;
  const bachelorsPercent = total > 0 ? (bachelors / total * 100).toFixed(1) : 0;
  const mastersPercent = total > 0 ? (masters / total * 100).toFixed(1) : 0;
 
 
  const content = `
-   <h2>${cluster.name}</h2>
+   <h2>${fullName}</h2>
    <div class="popup-subtitle">Class of 2024</div>
 
 
@@ -2748,26 +2722,26 @@ function showConcentrationPopup(cluster) {
 
 
 function showGenderPopup(cluster) {
- const { enrolled = 0, admitted = 0, acceptanceRate = 0, yieldRate = 0, byClass = {} } = cluster;
- const enrolledPercent = ((enrolled / brownData.students.total) * 100).toFixed(1);
- const admittedPercent = ((admitted / (brownData.students.byGender.men.admitted + brownData.students.byGender.women.admitted + brownData.students.byGender.nonBinary.admitted)) * 100).toFixed(1);
+ const { enrolled = 0, admitted = 0, applicants = 0, acceptanceRate = 0, yieldRate = 0 } = cluster;
+ const totalEnrolled = brownData.students.byGender.men.enrolled + brownData.students.byGender.women.enrolled + brownData.students.byGender.nonBinary.enrolled;
+ const totalAdmitted = brownData.students.byGender.men.admitted + brownData.students.byGender.women.admitted + brownData.students.byGender.nonBinary.admitted;
+ const enrolledPercent = ((enrolled / totalEnrolled) * 100).toFixed(1);
+ const admittedPercent = ((admitted / totalAdmitted) * 100).toFixed(1);
 
 
  const content = `
-   <h2>${cluster.name} Students</h2>
-   <div class="popup-subtitle">All Classes (2024)</div>
+   <h2>${cluster.name}</h2>
+   <div class="popup-subtitle">Class of 2028</div>
 
 
    <div class="popup-stat">
-     <div class="popup-stat-label">Enrolled: ${enrolled.toLocaleString()} (${enrolledPercent}%)</div>
-     <div class="popup-bar">
-       <div class="popup-bar-fill" style="width: ${enrolledPercent}%; background: ${colors[cluster.genderKey]};"></div>
-     </div>
+     <div class="popup-stat-label">Applied</div>
+     <div class="popup-stat-value">${applicants.toLocaleString()}</div>
    </div>
 
 
    <div class="popup-stat">
-     <div class="popup-stat-label">Admitted: ${admitted.toLocaleString()} (${admittedPercent}%)</div>
+     <div class="popup-stat-label">Admitted: ${admitted.toLocaleString()} (${admittedPercent}% of total admitted)</div>
      <div class="popup-bar">
        <div class="popup-bar-fill" style="width: ${admittedPercent}%; background: ${colors[cluster.genderKey]}; opacity: 0.5;"></div>
      </div>
@@ -2775,28 +2749,23 @@ function showGenderPopup(cluster) {
 
 
    <div class="popup-stat">
+     <div class="popup-stat-label">Enrolled: ${enrolled.toLocaleString()} (${enrolledPercent}% of total enrolled)</div>
+     <div class="popup-bar">
+       <div class="popup-bar-fill" style="width: ${enrolledPercent}%; background: ${colors[cluster.genderKey]};"></div>
+     </div>
+   </div>
+
+
+   <div class="popup-stat">
      <div class="popup-stat-label">Acceptance Rate</div>
-     <div class="popup-stat-value">${acceptanceRate.toFixed(1)}%</div>
+     <div class="popup-stat-value">${acceptanceRate.toFixed(2)}%</div>
    </div>
 
 
    <div class="popup-stat">
      <div class="popup-stat-label">Yield Rate</div>
-     <div class="popup-stat-value">${yieldRate.toFixed(1)}%</div>
+     <div class="popup-stat-value">${yieldRate.toFixed(2)}%</div>
    </div>
-
-
-   ${byClass && Object.keys(byClass).length > 0 ? `
-   <div class="popup-stat">
-     <div class="popup-stat-label">Breakdown by Class</div>
-     <ul class="popup-list">
-       <li>First-year: ${byClass.firstYear || 0}</li>
-       <li>Sophomore: ${byClass.sophomore || 0}</li>
-       <li>Junior: ${byClass.junior || 0}</li>
-       <li>Senior: ${byClass.senior || 0}</li>
-     </ul>
-   </div>
-   ` : ''}
  `;
 
 
@@ -2815,14 +2784,12 @@ function showGenderPopup(cluster) {
 
 
 function showDepartmentPopup(cluster) {
- const { count = 0, assistantProf = 0, associateProf = 0, fullProf = 0 } = cluster;
- const assistantPercent = count > 0 ? (assistantProf / count * 100).toFixed(1) : 0;
- const associatePercent = count > 0 ? (associateProf / count * 100).toFixed(1) : 0;
- const fullPercent = count > 0 ? (fullProf / count * 100).toFixed(1) : 0;
+ const { count = 0 } = cluster;
+ const percentOfTotal = ((count / brownData.faculty.total) * 100).toFixed(1);
 
  const content = `
    <h2>${cluster.name}</h2>
-   <div class="popup-subtitle">Faculty Department</div>
+   <div class="popup-subtitle">Faculty Division (2024)</div>
 
    <div class="popup-stat">
      <div class="popup-stat-label">Total Faculty</div>
@@ -2830,23 +2797,9 @@ function showDepartmentPopup(cluster) {
    </div>
 
    <div class="popup-stat">
-     <div class="popup-stat-label">Assistant Professors: ${assistantProf} (${assistantPercent}%)</div>
+     <div class="popup-stat-label">Percentage of All Faculty: ${percentOfTotal}%</div>
      <div class="popup-bar">
-       <div class="popup-bar-fill" style="width: ${assistantPercent}%; background: ${colors.faculty};"></div>
-     </div>
-   </div>
-
-   <div class="popup-stat">
-     <div class="popup-stat-label">Associate Professors: ${associateProf} (${associatePercent}%)</div>
-     <div class="popup-bar">
-       <div class="popup-bar-fill" style="width: ${associatePercent}%; background: ${colors.faculty}; opacity: 0.7;"></div>
-     </div>
-   </div>
-
-   <div class="popup-stat">
-     <div class="popup-stat-label">Full Professors: ${fullProf} (${fullPercent}%)</div>
-     <div class="popup-bar">
-       <div class="popup-bar-fill" style="width: ${fullPercent}%; background: ${colors.faculty}; opacity: 0.5;"></div>
+       <div class="popup-bar-fill" style="width: ${percentOfTotal}%; background: ${colors.faculty};"></div>
      </div>
    </div>
  `;
@@ -2854,13 +2807,6 @@ function showDepartmentPopup(cluster) {
  document.getElementById('popup-content').innerHTML = content;
  popupOverlay.classList.add('visible');
  popupModal.classList.add('visible');
-
- // Animate bars
- setTimeout(() => {
-   document.querySelectorAll('.popup-bar-fill').forEach(bar => {
-     bar.style.width = bar.style.width;
-   });
- }, 50);
 }
 
 
@@ -2871,7 +2817,7 @@ function showRankPopup(cluster) {
 
  const content = `
    <h2>${cluster.name}</h2>
-   <div class="popup-subtitle">Faculty by Gender</div>
+   <div class="popup-subtitle">Faculty Rank (2024)</div>
 
    <div class="popup-stat">
      <div class="popup-stat-label">Total Faculty</div>
@@ -2907,12 +2853,12 @@ function showRankPopup(cluster) {
 
 
 function showDivisionPopup(cluster) {
- const { count = 0, subDepts = [] } = cluster;
+ const { count = 0, fullName = cluster.name } = cluster;
  const percentOfTotal = ((count / brownData.staff.total) * 100).toFixed(1);
 
  const content = `
-   <h2>${cluster.name}</h2>
-   <div class="popup-subtitle">Staff Division</div>
+   <h2>${fullName}</h2>
+   <div class="popup-subtitle">Staff Division (2024)</div>
 
    <div class="popup-stat">
      <div class="popup-stat-label">Total Staff</div>
@@ -2925,27 +2871,11 @@ function showDivisionPopup(cluster) {
        <div class="popup-bar-fill" style="width: ${percentOfTotal}%; background: ${colors.staff};"></div>
      </div>
    </div>
-
-   ${subDepts.length > 0 ? `
-   <div class="popup-stat">
-     <div class="popup-stat-label">Sub-Departments</div>
-     <ul class="popup-list">
-       ${subDepts.map(dept => `<li>${dept}</li>`).join('')}
-     </ul>
-   </div>
-   ` : ''}
  `;
 
  document.getElementById('popup-content').innerHTML = content;
  popupOverlay.classList.add('visible');
  popupModal.classList.add('visible');
-
- // Animate bars
- setTimeout(() => {
-   document.querySelectorAll('.popup-bar-fill').forEach(bar => {
-     bar.style.width = bar.style.width;
-   });
- }, 50);
 }
 
 
@@ -3084,5 +3014,3 @@ function init() {
 
 // Start the visualization
 init();
-
-
